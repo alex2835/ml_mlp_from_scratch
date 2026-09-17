@@ -2,19 +2,18 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
-#include "dense_layer.hpp"
+#include "helpers.hpp"
 
-// Save each row of W as a grayscale PGM image [rows x cols].
-// Row c of W holds the 784 weights that multiply the image to produce the
-// score for class c — reshaped back to 28x28 it shows what the class
-// "looks for": white = pixels that push the score up, black = pixels that
-// push it down.
-inline void save_weight_images(const DenseLayer &layer, int rows, int cols, const std::string &dir)
+// Save each row of W as a grayscale PGM image [rows x cols]; needs
+// W.cols() == rows*cols. For a first Dense layer on MNIST, row c holds the
+// 784 weights that produce output c — reshaped to 28x28 it shows what that
+// output "looks for": white = pixels that push it up, black = push it down.
+inline void save_weight_images(const Mat &W, int rows, int cols, const std::string &dir)
 {
     std::filesystem::create_directories(dir);
-    for (int c = 0; c < layer.W.rows(); ++c)
+    for (int c = 0; c < W.rows(); ++c)
     {
-        Vec w = layer.W.row(c).transpose();
+        Vec w = W.row(c).transpose();
         float lo = w.minCoeff();
         float hi = w.maxCoeff();
 

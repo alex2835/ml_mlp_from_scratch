@@ -1,11 +1,11 @@
 #pragma once
-#include "helpers.hpp"
+#include "layer.hpp"
 
-struct DenseLayer
+struct DenseLayer : Layer
 {
     Mat W, dW; // [m x n]
     Vec b, db; // [m]
-    Mat X, A;     // cached input and output, [n x B] and [m x B]
+    Mat X, A;  // cached input and output, [n x B] and [m x B]
     Activation activation;
 
     DenseLayer(int n, int m, Activation act)
@@ -16,29 +16,29 @@ struct DenseLayer
           activation(act)
     {}
 
-    Mat forward(const Mat &x)
+    Mat forward(const Mat &x) override
     {
         X = x;
         Mat Z = (W * X).colwise() + b;
-        const auto activaction_func = get_activation(activation);
-        A = activaction_func(Z);  // [m x B]
+        A = get_activation(activation)(Z); // [m x B]
         return A;
     }
 
-    Mat backward(const Mat &dY)
+    Mat backward(const Mat &dY) override
     {
-        const auto act_deriv = get_derivative(activation);
-        Mat dZ = dY.cwiseProduct(act_deriv(A)); // chain rule through the activation
-        dW = dZ * X.transpose();
-        db = dZ.rowwise().sum();
-        return W.transpose() * dZ;
+        Mat dZ = dY.cwiseProduct(get_derivative(activation)(A)); // chain rule through the activation
+        dW = dZ * X.transpose();   // [m x B][B x n] -> [m x n]
+        db = dZ.rowwise().sum();   // [m]
+        return W.transpose() * dZ; // [n x m][m x B] -> [n x B]
     }
 
     // l2 is the weight-decay strength: every step shrinks each weight
     // toward zero in proportion to its own size (gradient of l2/2 * sum(W^2))
-    void step(float lr, float l2 = 0.0f)
+    void step(float lr, float l2) override
     {
         W -= lr * (dW + l2 * W);
         b -= lr * db;
     }
+
+    const Mat &weights() const override { return W; }
 };

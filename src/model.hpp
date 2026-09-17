@@ -1,46 +1,53 @@
 #pragma once
-#include "dense_layer.hpp"
+#include <concepts>
+#include <memory>
 #include <ranges>
+#include <vector>
+#include "layer.hpp"
 
-struct LayerConfig
+struct Model
 {
-    Activation activation;
-    int in;
-    int out;
+    virtual ~Model() = default;
+    virtual Mat forward(const Mat &x) = 0;
+    virtual void backward(const Mat &dY) = 0;
+    virtual void step(float lr, float l2 = 0.0f) = 0;
+    virtual const Layer &layer(size_t i) const = 0;
+    virtual size_t layer_count() const = 0;
 };
 
-class PerceptronModel
+// A plain chain of layers: output of one is the input of the next.
+class Sequential : public Model
 {
-    std::vector<DenseLayer> layers;
+    std::vector<std::unique_ptr<Layer>> layers;
 
 public:
-    PerceptronModel(const std::vector<LayerConfig>& layer_configs)
+    template <std::derived_from<Layer>... Ls>
+    explicit Sequential(Ls... ls)
     {
-        for (const LayerConfig &cfg : layer_configs)
-            layers.emplace_back(cfg.in, cfg.out, cfg.activation);
+        (layers.push_back(std::make_unique<Ls>(std::move(ls))), ...);
     }
 
-    Mat forward(const Mat &x)
+    Mat forward(const Mat &x) override
     {
         Mat out = x;
-        for (DenseLayer &layer : layers)
-            out = layer.forward(out);
+        for (auto &layer : layers)
+            out = layer->forward(out);
         return out;
     }
 
-    void backward(const Mat &dY)
+    void backward(const Mat &dY) override
     {
         Mat dL = dY;
-        for (auto& layer : layers | std::views::reverse)
-            dL = layer.backward(dL);
+        for (auto &layer : layers | std::views::reverse)
+            dL = layer->backward(dL);
     }
 
-    void step(float lr, float l2 = 0.0f)
+    void step(float lr, float l2 = 0.0f) override
     {
-        for (DenseLayer &layer : layers)
-            layer.step(lr, l2);
+        for (auto &layer : layers)
+            layer->step(lr, l2);
     }
 
-    const DenseLayer &layer(size_t i) const { return layers[i]; }
-    size_t layer_count() const { return layers.size(); }
+    const Layer &layer(size_t i) const override { return *layers[i]; }
+    size_t layer_count() const override { return layers.size(); }
 };
